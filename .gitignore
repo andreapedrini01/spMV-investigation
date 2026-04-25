@@ -1,0 +1,8 @@
+# Laboratory folders
+Laboratory_*/
+
+# PDF files
+*.pdf
+
+# Knowledge
+DELIVERABLE1_KNOWLEDGE_BASE.md
