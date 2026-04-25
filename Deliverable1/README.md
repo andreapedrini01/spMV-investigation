@@ -8,8 +8,8 @@ Sparse Matrix-Vector Multiplication (SpMV) on GPU using CUDA. Compares CSR-Scala
 Deliverable1/
 ├── src/
 │   ├── main.cu          # Entry point: reads .mtx, runs all kernels, prints results
-│   ├── mmio.c / mmio.h  # Matrix Market I/O (based on NIST reference)
-│   ├── spmv_cpu.c / .h  # CPU baseline (COO + CSR) for validation
+│   ├── mmio.cu / mmio.h # Matrix Market I/O (NIST reference library)
+│   ├── spmv_cpu.cu / .h # CPU baseline (COO + CSR) for validation
 │   ├── spmv_gpu.cu / .h # GPU kernels: CSR-Scalar, CSR-Vector, cuSPARSE
 │   └── utils.cu / .h    # Utilities: MTX reader, COO->CSR, stats, device info
 ├── scripts/
@@ -21,12 +21,14 @@ Deliverable1/
 └── README.md
 ```
 
-## Requirements
+## Environment
 
-- CUDA Toolkit (tested with 11.8+)
-- GPU with compute capability sm_80 (Ampere A100) or sm_86 (A30/A40)
-- cuSPARSE (included with CUDA Toolkit)
-- `wget` for downloading matrices
+This project was developed and tested on the DISI cluster at the University of Trento. The compute nodes have NVIDIA A30 GPUs (Ampere, sm_80). Jobs are submitted through SLURM on the `edu-short` partition with the `gpu.computing26` account.
+
+Software used:
+- CUDA 11.8 (`module load CUDA/11.8.0`)
+- cuSPARSE (ships with the CUDA Toolkit)
+- `wget` for downloading matrices from SuiteSparse
 
 ## Build
 
@@ -35,33 +37,24 @@ make        # builds bin/spmv
 make clean  # removes bin/
 ```
 
-To target a different GPU architecture, edit `NVCC_FLAGS` in the Makefile (e.g., `-arch=sm_86` for A30/A40).
+The Makefile targets `sm_80` by default. If you need a different architecture, edit `NVCC_FLAGS`.
 
 ## Download Matrices
+
+Run this from the login node:
 
 ```bash
 chmod +x scripts/download_matrices.sh
 ./scripts/download_matrices.sh
 ```
 
-This downloads 10 matrices into `matrices/`. The selection covers:
-- Small regular matrices (cage4, olm1000)
-- Medium structured matrices (west2021, mac_econ_fwd500)
-- FEM matrices with regular nnz/row (cant, consph, cop20k_A)
-- Protein structure (pdb1HYS)
-- Power-law web graph (webbase-1M)
-- Circuit simulation with irregular structure (scircuit)
+This downloads 10 matrices into `matrices/`. The selection covers small regular matrices (cage4, olm1000), medium structured ones (west2021, mac_econ_fwd500), FEM matrices with regular nnz/row (cant, consph, cop20k_A), a protein structure (pdb1HYS), a power-law web graph (webbase-1M), and a circuit simulation with irregular structure (scircuit).
 
 ## Run
 
 Single matrix:
 ```bash
 ./bin/spmv matrices/cant/cant.mtx
-```
-
-Optional tolerance parameter:
-```bash
-./bin/spmv matrices/cant/cant.mtx 1e-3
 ```
 
 All matrices on the cluster:
@@ -71,14 +64,14 @@ sbatch scripts/sbatch_run.sh
 
 ## Output
 
-For each matrix, the program prints:
+For each matrix the program prints:
 - Matrix dimensions and NNZ count
 - GPU device properties
-- Per-kernel timing (mean ± std over 10 iterations, after 4 warmup runs)
+- Per-kernel timing (mean over 10 iterations, after 4 warmup runs)
 - GFLOP/s (using 2·nnz flops per SpMV)
 - Effective memory bandwidth (GB/s)
-- Validation result against CPU reference (with configurable tolerance)
-- CSV summary line for easy data collection
+- Total absolute error between CPU and GPU results
+- A CSV summary line for easy data collection
 
 ## Kernels
 
@@ -91,4 +84,4 @@ For each matrix, the program prints:
 
 ## Validation
 
-GPU results are compared element-wise against the CPU CSR implementation. Default tolerance is 1e-4 (configurable via command line). Mismatches are reported with index and values for debugging.
+GPU results are validated against the CPU CSR implementation by computing the sum of absolute differences across all output elements, following the same approach used in the course labs.
