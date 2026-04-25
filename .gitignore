@@ -12,5 +12,8 @@ Deliverable1/bin/
 Deliverable1/outputs/
 Deliverable1/matrices/
 
+# report files omitted for now
+report/
+
 # OS files
 .DS_Store
