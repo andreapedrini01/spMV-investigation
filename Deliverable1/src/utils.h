@@ -17,8 +17,8 @@ float arithmetic_mean(const float *v, int len);
 float compute_std(const float *v, int len, float mean);
 
 /* Validate GPU result against CPU reference.
- * Returns the number of mismatches (elements where |a[i]-b[i]| > tol). */
-int validate_results(const float *ref, const float *test, int len, float tol);
+ * Returns the total absolute error (sum of |ref[i] - test[i]|). */
+float validate_results(const float *ref, const float *test, int len);
 
 /* Read a Matrix Market file and return COO arrays (0-indexed).
  * Handles symmetric matrices by expanding (i,j) -> (j,i).

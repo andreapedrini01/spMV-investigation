@@ -53,19 +53,12 @@ float compute_std(const float *v, int len, float mean)
 }
 
 /* ======================================================================== */
-int validate_results(const float *ref, const float *test, int len, float tol)
+float validate_results(const float *ref, const float *test, int len)
 {
-    int mismatches = 0;
-    for (int i = 0; i < len; i++) {
-        if (fabsf(ref[i] - test[i]) > tol) {
-            if (mismatches < 5) {
-                printf("  MISMATCH at index %d: ref=%.6f  test=%.6f  diff=%.6e\n",
-                       i, ref[i], test[i], fabsf(ref[i] - test[i]));
-            }
-            mismatches++;
-        }
-    }
-    return mismatches;
+    float error = 0.0f;
+    for (int i = 0; i < len; i++)
+        error += (float)fabs(ref[i] - test[i]);
+    return error;
 }
 
 /* ======================================================================== */
