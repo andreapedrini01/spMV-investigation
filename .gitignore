@@ -6,3 +6,11 @@ Laboratory_*/
 
 # Knowledge
 DELIVERABLE1_KNOWLEDGE_BASE.md
+
+# Deliverable build artifacts
+Deliverable1/bin/
+Deliverable1/outputs/
+Deliverable1/matrices/
+
+# OS files
+.DS_Store
