@@ -6,7 +6,7 @@ BIN_DIR = bin
 SRC_DIR = src
 OUT_DIR = outputs
 
-SOURCES = $(SRC_DIR)/main.cu $(SRC_DIR)/mmio.c $(SRC_DIR)/spmv_cpu.c \
+SOURCES = $(SRC_DIR)/main.cu $(SRC_DIR)/mmio.cu $(SRC_DIR)/spmv_cpu.cu \
           $(SRC_DIR)/spmv_gpu.cu $(SRC_DIR)/utils.cu
 TARGET = $(BIN_DIR)/spmv
 
