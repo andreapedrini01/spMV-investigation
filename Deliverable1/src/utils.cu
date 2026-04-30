@@ -211,3 +211,78 @@ void coo_to_csr(const int *row_indices, const int *col_indices, const float *coo
     *col_idx_out = ci;
     *csr_values_out = cv;
 }
+
+/* ======================================================================== */
+void print_memory_analysis(int nrows, int ncols, int nnz,
+                           const int *row_ptr, const int *col_idx)
+{
+    printf("\n--- Memory Behavior Analysis ---\n");
+
+    /* 1. Arithmetic intensity (flops / byte) */
+    double flops = 2.0 * nnz;  /* one mul + one add per nonzero */
+    double bytes = (double)nnz * (sizeof(float) + sizeof(int))   /* val[] + col_idx[] */
+                 + (double)(nrows + 1) * sizeof(int)             /* row_ptr[] */
+                 + (double)ncols * sizeof(float)                 /* x[] worst case */
+                 + (double)nrows * sizeof(float);                /* y[] */
+    double arith_intensity = flops / bytes;
+    printf("  Arithmetic intensity:    %.3f flops/byte\n", arith_intensity);
+
+    /* 2. Unique columns accessed — proxy for x-vector cache reuse.
+     * If unique_cols << ncols, the same x[] entries are read many times,
+     * so L1/L2 cache can absorb the reuse. If unique_cols ~ ncols,
+     * nearly every x[] element is touched and cache pressure is high. */
+    char *col_seen = (char *)calloc(ncols, sizeof(char));
+    int unique_cols = 0;
+    for (int i = 0; i < nnz; i++) {
+        if (col_idx[i] >= 0 && col_idx[i] < ncols && !col_seen[col_idx[i]]) {
+            col_seen[col_idx[i]] = 1;
+            unique_cols++;
+        }
+    }
+    free(col_seen);
+
+    double reuse_ratio = (unique_cols > 0) ? (double)nnz / unique_cols : 0.0;
+    double coverage = 100.0 * unique_cols / ncols;
+    printf("  Unique columns accessed: %d / %d (%.1f%% of x[])\n",
+           unique_cols, ncols, coverage);
+    printf("  Avg accesses per unique col (reuse): %.2f\n", reuse_ratio);
+
+    /* 3. x[] working set size vs cache sizes (A30: 192 KB L1 per SM, 24 MB L2) */
+    double x_working_set_KB = (double)unique_cols * sizeof(float) / 1024.0;
+    printf("  x[] working set:         %.1f KB", x_working_set_KB);
+    if (x_working_set_KB < 192.0)
+        printf(" (fits in L1)\n");
+    else if (x_working_set_KB < 24.0 * 1024.0)
+        printf(" (fits in L2, not L1)\n");
+    else
+        printf(" (exceeds L2)\n");
+
+    /* 4. Row length statistics — variance drives load imbalance */
+    int min_rl = nrows > 0 ? (row_ptr[1] - row_ptr[0]) : 0;
+    int max_rl = 0;
+    double sum_rl = 0.0;
+    double sum_rl2 = 0.0;
+    for (int i = 0; i < nrows; i++) {
+        int rl = row_ptr[i + 1] - row_ptr[i];
+        if (rl < min_rl) min_rl = rl;
+        if (rl > max_rl) max_rl = rl;
+        sum_rl += rl;
+        sum_rl2 += (double)rl * rl;
+    }
+    double avg_rl = sum_rl / nrows;
+    double var_rl = (sum_rl2 / nrows) - (avg_rl * avg_rl);
+    double std_rl = sqrt(var_rl);
+    double cv_rl = (avg_rl > 0) ? std_rl / avg_rl : 0.0;  /* coefficient of variation */
+
+    printf("  Row lengths:             min=%d, max=%d, avg=%.1f, std=%.1f, CV=%.2f\n",
+           min_rl, max_rl, avg_rl, std_rl, cv_rl);
+
+    if (cv_rl > 2.0)
+        printf("  -> High row-length variance: expect significant load imbalance\n");
+    else if (cv_rl > 0.5)
+        printf("  -> Moderate row-length variance\n");
+    else
+        printf("  -> Low row-length variance: rows are fairly uniform\n");
+
+    printf("---\n\n");
+}

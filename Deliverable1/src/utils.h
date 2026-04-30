@@ -35,4 +35,10 @@ void coo_to_csr(const int *row_indices, const int *col_indices, const float *coo
                 int nrows, int nnz,
                 int **row_ptr_out, int **col_idx_out, float **csr_values_out);
 
+/* Print coarse memory behavior analysis for the matrix.
+ * Computes: arithmetic intensity, x-vector reuse ratio, row length stats.
+ * This gives indirect evidence of cache behavior without profiling tools. */
+void print_memory_analysis(int nrows, int ncols, int nnz,
+                           const int *row_ptr, const int *col_idx);
+
 #endif /* UTILS_H */

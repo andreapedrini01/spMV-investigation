@@ -53,6 +53,9 @@ int main(int argc, char *argv[])
     coo_to_csr(coo_row, coo_col, coo_val, nrows, nnz,
                &csr_row_ptr, &csr_col_idx, &csr_val);
 
+    /* ---- Memory behavior analysis ---- */
+    print_memory_analysis(nrows, ncols, nnz, csr_row_ptr, csr_col_idx);
+
     /* ---- Generate random dense vector x ---- */
     srand(42);
     float *x = (float *)malloc(ncols * sizeof(float));
