@@ -5,7 +5,7 @@
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=1
-#SBATCH --time=00:15:00
+#SBATCH --time=00:05:00
 
 #SBATCH --job-name=spmv_ncu
 #SBATCH --output=outputs/ncu_profile_%j.out
@@ -34,7 +34,7 @@ MATRICES_DIR="./matrices"
 
 METRICS="l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum,l1tex__t_sector_hit_rate.pct,lts__t_sector_hit_rate.pct,dram__bytes_read.sum,sm__throughput.avg.pct_of_peak_sustained_elapsed"
 
-for mtx_name in mac_econ_fwd500 cant webbase-1M; do
+for mtx_name in cant; do
     mtx_file="$MATRICES_DIR/$mtx_name/$mtx_name.mtx"
 
     if [ ! -f "$mtx_file" ]; then
