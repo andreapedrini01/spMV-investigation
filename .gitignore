@@ -1,5 +1,7 @@
 # Laboratory folders
 Laboratory_*/
+reduction*
+IEEE-conference-template-062824
 
 # PDF files
 *.pdf
@@ -11,6 +13,7 @@ DELIVERABLE1_KNOWLEDGE_BASE.md
 Deliverable1/bin/
 Deliverable1/outputs/
 Deliverable1/matrices/
+Deliverable1/report/.venv/
 
 # report files omitted for now
 report/
