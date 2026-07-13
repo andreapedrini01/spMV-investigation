@@ -18,14 +18,20 @@ MPI), and optionally NCCL (`allgather` only).
 
 ## Build
 
-On the cluster:
+Compile on a compute node, not the login node: the module toolchain's
+assembler may not run on the login CPU. Grab an interactive shell first:
+
+    srun --partition=edu-short --account=gpu.computing26 --nodes=1 \
+         --gres=gpu:4 --ntasks=1 --cpus-per-task=4 --time=00:30:00 --pty bash
 
     module load OpenMPI
     module load CUDA/12.5.0
     make                 # plain build (MPI staging + CUDA-aware)
     make NCCL=1 NVML=1   # add the NCCL transport and the GPU-UUID check
 
-The build targets `sm_80` (A30). Change with `make ARCH=sm_XX`.
+The SLURM scripts already build inside the job (on the compute node), so
+`sbatch scripts/sbatch_strong.sh` needs no manual build. The build targets
+`sm_80` (A30); change with `make ARCH=sm_XX`.
 
 ## Run
 
