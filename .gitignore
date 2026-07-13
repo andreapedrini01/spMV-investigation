@@ -2,12 +2,15 @@
 Laboratory_*/
 reduction*
 IEEE-conference-template-062824
+multiGPU-SpMV
+BFS
 
 # PDF files
 *.pdf
 
 # Knowledge
 DELIVERABLE1_KNOWLEDGE_BASE.md
+context
 
 # Deliverable build artifacts
 Deliverable1/bin/
