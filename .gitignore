@@ -17,6 +17,11 @@ Deliverable1/bin/
 Deliverable1/outputs/
 Deliverable1/matrices/
 Deliverable1/report/.venv/
+Deliverable2/bin/
+Deliverable2/obj/
+Deliverable2/outputs/
+Deliverable2/matrices/
+Deliverable2/test/mc
 
 # report files omitted for now
 report/
