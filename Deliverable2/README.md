@@ -16,32 +16,42 @@ Two communication modes exchange the input vector:
 Each mode runs with host staging, CUDA-aware MPI (device pointers passed to
 MPI), and optionally NCCL (`allgather` only).
 
+## Cluster notes (DISI edu-short)
+
+- Build on a **compute node**, not the login node `baldo`: loading the OpenMPI
+  module on the login CPU pulls a `binutils` whose assembler crashes there.
+  The compute nodes (edu01/edu02) build fine.
+- The `edu-short` partition has a **5-minute wall-time limit**, so we build once
+  and keep each run job short (one matrix per strong job).
+- The CUDA-aware transport needs an **OpenMPI built with CUDA support**. Check
+  after loading with `ompi_info | grep -i cuda`, and confirm at runtime: the
+  program prints `MPI CUDA-aware support (runtime): 1`. If it reports 0, load the
+  CUDA-aware OpenMPI module instead (e.g. `OpenMpi/4.1.5-CUDA-...`). Staging and
+  NCCL do not need it.
+- edu01 has hyper-threading on and is shared, so treat absolute times as
+  indicative; the warmup + repeated iterations and reported std cover the noise.
+
 ## Build
 
-Compile on a compute node, not the login node: the module toolchain's
-assembler may not run on the login CPU. Grab an interactive shell first:
+Grab a short interactive shell on a compute node (≤ 5 min), or use the build
+job below:
 
     srun --partition=edu-short --account=gpu.computing26 --nodes=1 \
-         --gres=gpu:4 --ntasks=1 --cpus-per-task=4 --time=00:30:00 --pty bash
+         --gres=gpu:0 --ntasks=1 --cpus-per-task=8 --time=00:05:00 --pty bash
 
     module load OpenMPI
     module load CUDA/12.5.0
-    make                 # plain build (MPI staging + CUDA-aware)
-    make NCCL=1 NVML=1   # add the NCCL transport and the GPU-UUID check
+    make -j                    # plain build (MPI staging + CUDA-aware)
+    make -j NCCL=1 NVML=1      # add the NCCL transport and the GPU-UUID check
 
-The SLURM scripts already build inside the job (on the compute node), so
-`sbatch scripts/sbatch_strong.sh` needs no manual build. The build targets
-`sm_80` (A30); change with `make ARCH=sm_XX`.
+The build targets `sm_80` (A30); change with `make ARCH=sm_XX`.
 
 ## Run
 
-Real matrix (strong scaling):
+Interactive smoke test (add `--oversubscribe` if the shell has few slots):
 
-    mpirun -np 4 ./bin/dspmv matrices/cant/cant.mtx
-
-Generated matrix (weak scaling), with `N = rows_per_rank * P`:
-
-    mpirun -np 4 ./bin/dspmv --gen 200000 32 --pattern random
+    mpirun --oversubscribe -np 4 ./bin/dspmv --gen 20000 32     # generated
+    mpirun -np 4 ./bin/dspmv matrices/cant/cant.mtx             # real matrix
 
 Options:
 
@@ -53,13 +63,22 @@ Options:
     --seed S                      generator seed (default 42)
     --no-check                    skip validation
 
-## Scripts
+## Scripts (batch)
+
+From the login node, submit everything at once (build, then runs after it):
 
     bash scripts/download_matrices.sh   # fetch the SuiteSparse matrices
-    sbatch scripts/sbatch_strong.sh     # strong scaling, P in {1,2,4}
-    sbatch scripts/sbatch_weak.sh       # weak scaling, P in {1,2,4}
+    bash scripts/submit_all.sh          # build job + one strong job per matrix + weak job
+    # when the jobs finish:
+    bash scripts/collect_csv.sh         # merge into outputs/strong_all.csv, weak_all.csv
 
-Both jobs write a full log and a `.csv` under `outputs/`.
+Or run the pieces manually (build must finish first):
+
+    sbatch scripts/sbatch_build.sh
+    sbatch scripts/sbatch_strong.sh matrices/cant/cant.mtx   # one matrix per job
+    sbatch scripts/sbatch_weak.sh
+
+Each job writes a full log and a `.csv` under `outputs/`.
 
 ## Output
 

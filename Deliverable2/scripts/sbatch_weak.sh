@@ -6,24 +6,26 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:4
 #SBATCH --mem=16G
-#SBATCH --time=00:20:00
+#SBATCH --time=00:05:00
 #SBATCH --job-name=dspmv_weak
 #SBATCH --output=outputs/weak_%j.out
 #SBATCH --error=outputs/weak_%j.err
 
-# Weak scaling: synthetic matrices with N = ROWS_PER_RANK * P, so the per-rank
-# work is constant while P grows. A flat time curve means the algorithm is
-# weakly scalable; any growth is the communication overhead added by P.
+# Weak scaling: N = ROWS_PER_RANK * P, so per-rank work is constant while P
+# grows. A flat time curve means the algorithm is weakly scalable; growth is
+# the communication overhead added by P. Build first (scripts/sbatch_build.sh).
 module load OpenMPI
 module load CUDA/12.5.0
 
 mkdir -p outputs
-# Build on the compute node; fall back to a plain build if NCCL/NVML are absent.
-make clean
-make NCCL=1 NVML=1 || { echo "=== bonus build failed, falling back to plain build ==="; make clean; make; }
 
-ROWS_PER_RANK=200000   # owned rows per GPU
-NNZ_PER_ROW=32         # nonzeros per row (constant work per rank)
+if [ ! -x ./bin/dspmv ]; then
+    echo "ERROR: ./bin/dspmv not found. Build first with scripts/sbatch_build.sh"
+    exit 1
+fi
+
+ROWS_PER_RANK="${ROWS_PER_RANK:-200000}"  # owned rows per GPU
+NNZ_PER_ROW="${NNZ_PER_ROW:-32}"          # nonzeros per row (constant work/rank)
 
 LOG="outputs/weak_${SLURM_JOB_ID}.log"
 CSV="outputs/weak_${SLURM_JOB_ID}.csv"
