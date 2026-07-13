@@ -18,8 +18,9 @@ module load OpenMPI
 module load CUDA/12.5.0
 
 mkdir -p outputs
+# Build on the compute node; fall back to a plain build if NCCL/NVML are absent.
 make clean
-make NCCL=1 NVML=1
+make NCCL=1 NVML=1 || { echo "=== bonus build failed, falling back to plain build ==="; make clean; make; }
 
 ROWS_PER_RANK=200000   # owned rows per GPU
 NNZ_PER_ROW=32         # nonzeros per row (constant work per rank)

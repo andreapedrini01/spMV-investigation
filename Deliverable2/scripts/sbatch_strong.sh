@@ -16,10 +16,11 @@ module load OpenMPI
 module load CUDA/12.5.0
 
 mkdir -p outputs
+# Build here, on the compute node (the login node's assembler may not run).
+# Try the bonus build (NCCL + NVML); fall back to the plain build if the
+# optional libraries are missing, so the job never dies on a missing lib.
 make clean
-# Build with NCCL and NVML enabled (bonus); drop the flags if the libraries
-# are unavailable: `make` for the plain build.
-make NCCL=1 NVML=1
+make NCCL=1 NVML=1 || { echo "=== bonus build failed, falling back to plain build ==="; make clean; make; }
 
 LOG="outputs/strong_${SLURM_JOB_ID}.log"
 CSV="outputs/strong_${SLURM_JOB_ID}.csv"

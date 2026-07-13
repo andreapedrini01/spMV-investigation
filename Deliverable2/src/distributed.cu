@@ -41,11 +41,14 @@ static __global__ void k_gather_by_index(int n, const int *idx, const float *in,
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n) out[i] = in[idx[i]];
 }
+#ifdef USE_NCCL
+/* used only by the NCCL path: reorder from the strided padded gather layout */
 static __global__ void k_permute(int n, const int *dst, const int *src, const float *in, float *out)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n) out[dst[i]] = in[src[i]];
 }
+#endif
 
 /* ---- comparators / search ---- */
 static int cmp_int(const void *a, const void *b)
@@ -533,16 +536,15 @@ void spmvB_free(SpmvCtxB *ctx)
 void gather_y_to_root(const float *h_y_local, int n_local, int rank, int P, int M,
                       MPI_Comm comm, float *h_y_full)
 {
-    int *recvcounts = NULL, *displs = NULL;
-    float *gathered = NULL;
-    if (rank == 0) {
-        recvcounts = (int *)malloc((size_t)P * sizeof(int));
-        displs = (int *)malloc((size_t)P * sizeof(int));
-        for (int p = 0; p < P; p++) recvcounts[p] = count_cyclic(M, P, p);
-        displs[0] = 0;
-        for (int p = 1; p < P; p++) displs[p] = displs[p - 1] + recvcounts[p - 1];
-        gathered = (float *)malloc((size_t)M * sizeof(float));
-    }
+    /* recvcounts/displs matter only at the root, but we fill them on every rank
+     * to keep the collective call unambiguous */
+    int *recvcounts = (int *)malloc((size_t)P * sizeof(int));
+    int *displs = (int *)malloc((size_t)P * sizeof(int));
+    for (int p = 0; p < P; p++) recvcounts[p] = count_cyclic(M, P, p);
+    displs[0] = 0;
+    for (int p = 1; p < P; p++) displs[p] = displs[p - 1] + recvcounts[p - 1];
+
+    float *gathered = (rank == 0) ? (float *)malloc((size_t)M * sizeof(float)) : NULL;
 
     MPI_Gatherv(h_y_local, n_local, MPI_FLOAT, gathered, recvcounts, displs, MPI_FLOAT, 0, comm);
 
@@ -550,8 +552,9 @@ void gather_y_to_root(const float *h_y_local, int n_local, int rank, int P, int 
         for (int p = 0; p < P; p++)
             for (int mm = 0; mm < recvcounts[p]; mm++)
                 h_y_full[p + mm * P] = gathered[displs[p] + mm];
-        free(recvcounts); free(displs); free(gathered);
+        free(gathered);
     }
+    free(recvcounts); free(displs);
 }
 
 /* ======================================================================== */
