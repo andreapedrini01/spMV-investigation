@@ -5,6 +5,9 @@ IEEE-conference-template-062824
 multiGPU-SpMV
 BFS
 
+# csv files
+*.csv
+
 # PDF files
 *.pdf
 
