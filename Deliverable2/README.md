@@ -39,12 +39,17 @@ job below:
     srun --partition=edu-short --account=gpu.computing26 --nodes=1 \
          --gres=gpu:0 --ntasks=1 --cpus-per-task=8 --time=00:05:00 --pty bash
 
-    module load OpenMPI
-    module load CUDA/12.5.0
-    make -j                    # plain build (MPI staging + CUDA-aware)
-    make -j NCCL=1 NVML=1      # add the NCCL transport and the GPU-UUID check
+    module purge
+    module load OpenMpi/4.1.5-CUDA-12.3.2   # CUDA-aware MPI (smcuda BTL, GPUDirect P2P)
+    module load CUDA/12.3.2
+    make -j                    # MPI staging + CUDA-aware
+    make -j NCCL=1 NVML=1      # add NCCL (if available) and the GPU-UUID check
 
-The build targets `sm_80` (A30); change with `make ARCH=sm_XX`.
+Use the CUDA-aware OpenMPI (`OpenMpi/4.1.5-CUDA-12.3.2`, `ompi_info` shows the
+`smcuda` BTL): the generic `OpenMPI` module uses plain UCX, so device pointers
+passed to MPI are staged through the host and the "cuda-aware" transport is much
+slower. The Makefile auto-detects the MPI paths from `mpicc`, so it works with
+either module. The build targets `sm_80` (A30); change with `make ARCH=sm_XX`.
 
 ## Run
 

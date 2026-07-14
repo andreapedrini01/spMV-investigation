@@ -14,8 +14,9 @@
 # Weak scaling: N = ROWS_PER_RANK * P, so per-rank work is constant while P
 # grows. A flat time curve means the algorithm is weakly scalable; growth is
 # the communication overhead added by P. Build first (scripts/sbatch_build.sh).
-module load OpenMPI
-module load CUDA/12.5.0
+module purge
+module load OpenMpi/4.1.5-CUDA-12.3.2   # CUDA-aware MPI (smcuda BTL, GPUDirect P2P)
+module load CUDA/12.3.2
 
 mkdir -p outputs
 

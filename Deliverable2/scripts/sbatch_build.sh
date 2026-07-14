@@ -13,8 +13,12 @@
 # Compile on a compute node (the login node's module assembler segfaults).
 # No GPU is needed to cross-compile for sm_80, so we request gpu:0 and use
 # several CPUs to build the translation units in parallel.
-module load OpenMPI
-module load CUDA/12.5.0
+# CUDA-aware OpenMPI (smcuda BTL => direct GPU-to-GPU): this is the build we
+# want so device pointers passed to MPI use GPUDirect P2P, not host staging.
+module purge
+module load OpenMpi/4.1.5-CUDA-12.3.2
+module load CUDA/12.3.2                 # auto-loaded by the OpenMPI module; explicit for clarity
+module load NCCL 2>/dev/null || true    # not available as a module on edu; build falls back to plain
 
 mkdir -p outputs
 make clean

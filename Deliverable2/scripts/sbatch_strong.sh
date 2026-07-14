@@ -15,8 +15,9 @@
 # under the 5-minute edu-short limit. The binary must already be built
 # (run scripts/sbatch_build.sh first). Pass the matrix as the first argument:
 #   sbatch scripts/sbatch_strong.sh matrices/cant/cant.mtx
-module load OpenMPI
-module load CUDA/12.5.0
+module purge
+module load OpenMpi/4.1.5-CUDA-12.3.2   # CUDA-aware MPI (smcuda BTL, GPUDirect P2P)
+module load CUDA/12.3.2
 
 mkdir -p outputs
 

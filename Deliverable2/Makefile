@@ -3,6 +3,16 @@ ARCH = sm_80
 NVCC_FLAGS = -O3 -arch=$(ARCH) -Xcompiler -Wall
 LIBS = -lmpi -lcusparse -lm
 
+# Auto-detect the MPI install from the mpicc wrapper so nvcc finds mpi.h and
+# libmpi with any OpenMPI module (including the CUDA-aware OpenMpi/*-CUDA-*).
+# Falls back to the compiler's default search paths if mpicc is not on PATH.
+MPICC := $(shell which mpicc 2>/dev/null)
+ifneq ($(MPICC),)
+  MPI_ROOT := $(patsubst %/bin/mpicc,%,$(MPICC))
+  NVCC_FLAGS += -I$(MPI_ROOT)/include
+  LIBS += -L$(MPI_ROOT)/lib
+endif
+
 # Optional bonus features:
 #   make NCCL=1   enable the NCCL AllGather transport (links -lnccl)
 #   make NVML=1   print each rank's GPU UUID at startup (links -lnvidia-ml)
