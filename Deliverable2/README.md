@@ -1,108 +1,99 @@
-# Distributed SpMV with MPI CUDA-aware (Deliverable 2)
+# Distributed SpMV with CUDA-aware MPI — Deliverable 2
 
-Distributed sparse matrix-vector multiplication `y = A*x` across multiple GPUs.
-One MPI rank drives one GPU. Rows are distributed with a 1D cyclic rule
-`owner(i) = i % P`, so the k-th local row of rank r has global index `r + k*P`.
-The local kernel is the CSR-Vector kernel reused from Deliverable 1.
+Distributed sparse matrix-vector multiplication `y = A*x` over multiple GPUs,
+one MPI rank per GPU. Rows are distributed with a 1D cyclic rule
+`owner(i) = i % P` (the k-th local row of rank `r` has global index `r + k*P`).
+The node-local product uses the CSR-Vector kernel from Deliverable 1.
 
-Two communication modes exchange the input vector:
+The input vector `x` is exchanged with two communication modes:
 
-- `allgather`: every rank gathers the whole `x` (`MPI_Allgatherv`). Simple,
-  memory `O(N)` per rank.
-- `ghost`: each rank exchanges only the remote entries it references
-  (`MPI_Alltoallv`), with a local/global index remap into a compact buffer.
-  Memory `O(n_local + n_ghost)` and lower communication volume.
+- **allgather** — every rank reconstructs the whole `x` with `MPI_Allgatherv`
+  (memory `O(N)` per rank);
+- **ghost** — each rank exchanges only the remote entries it references with
+  `MPI_Alltoallv`, using a global→compact index remap (memory
+  `O(n_local + n_ghost)`, lower communication volume).
 
-Each mode runs with host staging, CUDA-aware MPI (device pointers passed to
-MPI), and optionally NCCL (`allgather` only).
+Each mode runs over two transports: host **staging** and **CUDA-aware** MPI
+(device pointers passed to MPI and moved device-to-device by a GPUDirect-capable
+build). Both produce identical results.
 
-## Cluster notes (DISI edu-short)
+The results reported in the paper were produced with the setup and scripts
+below, on the `edu01` node (4× NVIDIA A30) of the DISI cluster.
 
-- Build on a **compute node**, not the login node `baldo`: loading the OpenMPI
-  module on the login CPU pulls a `binutils` whose assembler crashes there.
-  The compute nodes (edu01/edu02) build fine.
-- The `edu-short` partition has a **5-minute wall-time limit**, so we build once
-  and keep each run job short (one matrix per strong job).
-- The CUDA-aware transport needs an **OpenMPI built with CUDA support**. Check
-  after loading with `ompi_info | grep -i cuda`, and confirm at runtime: the
-  program prints `MPI CUDA-aware support (runtime): 1`. If it reports 0, load the
-  CUDA-aware OpenMPI module instead (e.g. `OpenMpi/4.1.5-CUDA-...`). Staging and
-  NCCL do not need it.
-- edu01 has hyper-threading on and is shared, so treat absolute times as
-  indicative; the warmup + repeated iterations and reported std cover the noise.
+## Environment (DISI cluster, edu-short)
 
-## Build
+- Partition `edu-short`, account `gpu.computing26`, up to 4× NVIDIA A30 (`sm_80`).
+- Modules: `OpenMpi/4.1.5-CUDA-12.3.2` (CUDA-aware, `smcuda` BTL) and `CUDA/12.3.2`.
+- The build must run on a **compute node** (e.g. `edu01`): the login node cannot
+  assemble the objects with the OpenMPI module loaded.
+- `edu-short` has a 5-minute wall-time limit per job; the workflow builds once
+  and runs one matrix per strong-scaling job.
 
-Grab a short interactive shell on a compute node (≤ 5 min), or use the build
-job below:
+To confirm the CUDA-aware transport is active: `ompi_info | grep -i cuda` shows
+the `smcuda` BTL, and the program prints `MPI CUDA-aware support (runtime): 1`.
+The generic `OpenMPI` module (plain UCX) stages device buffers through the host
+and yields much slower "cuda-aware" times.
 
-    srun --partition=edu-short --account=gpu.computing26 --nodes=1 \
-         --gres=gpu:0 --ntasks=1 --cpus-per-task=8 --time=00:05:00 --pty bash
+## Reproduce the results
 
-    module purge
-    module load OpenMpi/4.1.5-CUDA-12.3.2   # CUDA-aware MPI (smcuda BTL, GPUDirect P2P)
-    module load CUDA/12.3.2
-    make -j                    # MPI staging + CUDA-aware
-    make -j NCCL=1 NVML=1      # add NCCL (if available) and the GPU-UUID check
+    # 1. Fetch the SuiteSparse matrices used for strong scaling
+    bash scripts/download_matrices.sh
 
-Use the CUDA-aware OpenMPI (`OpenMpi/4.1.5-CUDA-12.3.2`, `ompi_info` shows the
-`smcuda` BTL): the generic `OpenMPI` module uses plain UCX, so device pointers
-passed to MPI are staged through the host and the "cuda-aware" transport is much
-slower. The Makefile auto-detects the MPI paths from `mpicc`, so it works with
-either module. The build targets `sm_80` (A30); change with `make ARCH=sm_XX`.
+    # 2. Build, then run everything (runs start after the build succeeds)
+    bash scripts/submit_all.sh
 
-## Run
+    # 3. When the jobs finish, merge the per-job CSVs
+    bash scripts/collect_csv.sh
+    #    -> outputs/strong_all.csv, outputs/weak_all.csv
 
-Interactive smoke test (add `--oversubscribe` if the shell has few slots):
-
-    mpirun --oversubscribe -np 4 ./bin/dspmv --gen 20000 32     # generated
-    mpirun -np 4 ./bin/dspmv matrices/cant/cant.mtx             # real matrix
-
-Options:
-
-    --mode allgather|ghost        run only one mode (default: both)
-    --transport staging|aware|nccl|all   (default: staging + aware [+ nccl])
-    --iters N                     timed iterations (default 10)
-    --warmup N                    warmup iterations (default 4)
-    --pattern random|banded       generator pattern (default random)
-    --seed S                      generator seed (default 42)
-    --no-check                    skip validation
-
-## Scripts (batch)
-
-From the login node, submit everything at once (build, then runs after it):
-
-    bash scripts/download_matrices.sh   # fetch the SuiteSparse matrices
-    bash scripts/submit_all.sh          # build job + one strong job per matrix + weak job
-    # when the jobs finish:
-    bash scripts/collect_csv.sh         # merge into outputs/strong_all.csv, weak_all.csv
-
-Or run the pieces manually (build must finish first):
+The steps can also be submitted individually (build must finish first):
 
     sbatch scripts/sbatch_build.sh
     sbatch scripts/sbatch_strong.sh matrices/cant/cant.mtx   # one matrix per job
-    sbatch scripts/sbatch_weak.sh
+    sbatch scripts/sbatch_weak.sh                            # weak scaling
 
-Each job writes a full log and a `.csv` under `outputs/`.
+Or build interactively on a compute node:
+
+    srun --partition=edu-short --account=gpu.computing26 --nodes=1 \
+         --gres=gpu:0 --ntasks=1 --cpus-per-task=8 --time=00:05:00 --pty bash
+    module purge
+    module load OpenMpi/4.1.5-CUDA-12.3.2
+    module load CUDA/12.3.2
+    make -j
+
+`make ARCH=sm_XX` targets a different GPU; `make NCCL=1` and `make NVML=1`
+enable the optional NCCL AllGather transport and the per-rank GPU-UUID print.
+
+## Run a single case
+
+    mpirun -np 4 ./bin/dspmv matrices/cant/cant.mtx      # real matrix
+    mpirun -np 4 ./bin/dspmv --gen 200000 32             # generated (weak-scaling size)
+
+Options:
+
+    --mode allgather|ghost         run one mode (default: both)
+    --transport staging|aware|all  run one transport (default: staging + aware)
+    --pattern random|banded        generator pattern (default: random)
+    --iters N / --warmup N         timed / warmup iterations (default 10 / 4)
+    --seed S                       generator seed (default 42)
+    --no-check                     skip validation
 
 ## Output
 
-Timing uses `MPI_Wtime` with a barrier before each iteration; the per-iteration
-SpMV time is the maximum over ranks. The kernel time (`t_comp`) is measured with
-CUDA events and the communication time (`t_comm`) around the exchange, so the
-two add up to the SpMV time. A CSV line per (matrix, P, mode, transport) is
-emitted on stderr (prefixed `CSVROW,`) with these columns:
+Each `(matrix, P, mode, transport)` case prints one CSV line on stderr, prefixed
+`CSVROW,`; the scripts strip the prefix into `outputs/*.csv`. Timing uses
+`MPI_Wtime` around a barrier before each iteration and takes the maximum over
+ranks; `t_comp` is measured with CUDA events and `t_comm` around the exchange,
+so `t_comp + t_comm` add up to `t_spmv`. Columns:
 
     matrix, ranks, mode, transport, nnz_global, t_spmv_ms, std_ms,
     t_comm_ms, t_comp_ms, gflops, nnz_min, nnz_max,
     commvol_send_max, commvol_recv_max, mem_bytes_max, abs_error
 
-`report/generate_plots.py` turns a CSV into the scaling figures.
-
 ## Validation
 
-Because `x` is derived deterministically from the column index, every rank
-recomputes a CPU reference for the rows it owns and compares it against the
-distributed result (`abs_error`). For file matrices the distributed `y` is also
-gathered on rank 0 and checked against a full serial SpMV, which validates the
+`x` is derived deterministically from the column index, so every rank recomputes
+a CPU reference for the rows it owns and compares it against the distributed
+result (`abs_error`). For file matrices the distributed `y` is additionally
+gathered on rank 0 and checked against a full serial SpMV, validating the
 distribution end to end.
