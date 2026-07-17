@@ -16,9 +16,6 @@ endif
 # Optional bonus features:
 #   make NCCL=1   enable the NCCL AllGather transport (links -lnccl)
 #   make NVML=1   print each rank's GPU UUID at startup (links -lnvidia-ml)
-# After `module load OpenMPI CUDA/12.5.0` the wrappers put the MPI headers and
-# libmpi on the default search path, so nvcc links MPI directly (as in Lab 12).
-# Build on a COMPUTE node (edu01): the login node's module assembler crashes.
 ifeq ($(NCCL),1)
   NVCC_FLAGS += -DUSE_NCCL
   LIBS += -lnccl
